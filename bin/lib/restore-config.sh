@@ -72,6 +72,18 @@ SCREEN_LOCK_TIMEOUT_SECONDS=""
 source "${settings_file}"
 log "Settings were captured on: ${SOURCE_DESKTOP:-unknown desktop}"
 
+kde_write() {
+    local file="$1" group="$2" key="$3" value="$4"
+    if command -v kwriteconfig6 >/dev/null 2>&1; then
+        kwriteconfig6 --file "${file}" --group "${group}" --key "${key}" "${value}"
+    elif command -v kwriteconfig5 >/dev/null 2>&1; then
+        kwriteconfig5 --file "${file}" --group "${group}" --key "${key}" "${value}"
+    else
+        err "Neither kwriteconfig6 nor kwriteconfig5 found on PATH."
+        exit 1
+    fi
+}
+
 applied=()
 skipped=()
 
@@ -128,7 +140,6 @@ if [[ -n "${KEYBOARD_LAYOUTS}" ]]; then
         done
         gsettings set org.gnome.desktop.input-sources sources "[$(IFS=','; printf '%s' "${_kb_tuples[*]}")]"
     else
-        require_cmd kwriteconfig6
         _kb_layouts=()
         _kb_variants=()
         for entry in "${_kb_entries[@]}"; do
@@ -139,8 +150,8 @@ if [[ -n "${KEYBOARD_LAYOUTS}" ]]; then
                 _kb_variants+=("")
             fi
         done
-        kwriteconfig6 --file kxkbrc --group Layout --key LayoutList "$(IFS=','; printf '%s' "${_kb_layouts[*]}")"
-        kwriteconfig6 --file kxkbrc --group Layout --key VariantList "$(IFS=','; printf '%s' "${_kb_variants[*]}")"
+        kde_write kxkbrc Layout LayoutList "$(IFS=','; printf '%s' "${_kb_layouts[*]}")"
+        kde_write kxkbrc Layout VariantList "$(IFS=','; printf '%s' "${_kb_variants[*]}")"
         warn "Keyboard layout written to kxkbrc; a logout/login may be needed for it to take effect."
     fi
     applied+=("keyboard layout")
@@ -155,9 +166,8 @@ if [[ -n "${NIGHT_LIGHT_ENABLED}" ]]; then
         gsettings set org.gnome.settings-daemon.plugins.color night-light-enabled "${NIGHT_LIGHT_ENABLED}"
         [[ -n "${NIGHT_LIGHT_TEMPERATURE}" ]] && gsettings set org.gnome.settings-daemon.plugins.color night-light-temperature "${NIGHT_LIGHT_TEMPERATURE}"
     else
-        require_cmd kwriteconfig6
-        kwriteconfig6 --file kwinrc --group NightColor --key Active "${NIGHT_LIGHT_ENABLED}"
-        [[ -n "${NIGHT_LIGHT_TEMPERATURE}" ]] && kwriteconfig6 --file kwinrc --group NightColor --key NightTemperature "${NIGHT_LIGHT_TEMPERATURE}"
+        kde_write kwinrc NightColor Active "${NIGHT_LIGHT_ENABLED}"
+        [[ -n "${NIGHT_LIGHT_TEMPERATURE}" ]] && kde_write kwinrc NightColor NightTemperature "${NIGHT_LIGHT_TEMPERATURE}"
         if command -v qdbus6 >/dev/null 2>&1; then
             qdbus6 org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || warn "Could not reload KWin config; a logout/login may be needed for Night Light to take effect."
         elif command -v qdbus >/dev/null 2>&1; then
@@ -177,8 +187,7 @@ if [[ -n "${REGION_FORMAT}" ]]; then
         require_cmd gsettings
         gsettings set org.gnome.system.locale region "${REGION_FORMAT}"
     else
-        require_cmd kwriteconfig6
-        kwriteconfig6 --file plasma-localerc --group Formats --key LANG "${REGION_FORMAT}"
+        kde_write plasma-localerc Formats LANG "${REGION_FORMAT}"
     fi
     warn "Region format applied; a logout/login is needed for it to fully take effect."
     applied+=("region format")
@@ -191,15 +200,14 @@ if [[ -n "${SCREEN_LOCK_ENABLED}" ]]; then
     if [[ "${target_desktop}" == "gnome" ]]; then
         require_cmd gsettings
         gsettings set org.gnome.desktop.screensaver lock-enabled "${SCREEN_LOCK_ENABLED}"
-        if [[ -n "${SCREEN_LOCK_TIMEOUT_SECONDS}" ]]; then
+        if [[ "${SCREEN_LOCK_ENABLED}" == "true" && "${SCREEN_LOCK_TIMEOUT_SECONDS}" =~ ^[0-9]+$ ]]; then
             gsettings set org.gnome.desktop.session idle-delay "${SCREEN_LOCK_TIMEOUT_SECONDS}"
             gsettings set org.gnome.desktop.screensaver lock-delay 0
         fi
     else
-        require_cmd kwriteconfig6
-        kwriteconfig6 --file kscreenlockerrc --group Daemon --key Autolock "${SCREEN_LOCK_ENABLED}"
-        if [[ -n "${SCREEN_LOCK_TIMEOUT_SECONDS}" ]]; then
-            kwriteconfig6 --file kscreenlockerrc --group Daemon --key Timeout $(( SCREEN_LOCK_TIMEOUT_SECONDS / 60 ))
+        kde_write kscreenlockerrc Daemon Autolock "${SCREEN_LOCK_ENABLED}"
+        if [[ "${SCREEN_LOCK_TIMEOUT_SECONDS}" =~ ^[0-9]+$ ]]; then
+            kde_write kscreenlockerrc Daemon Timeout $(( SCREEN_LOCK_TIMEOUT_SECONDS / 60 ))
         fi
     fi
     applied+=("screen lock timeout")

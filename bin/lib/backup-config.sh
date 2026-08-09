@@ -46,9 +46,6 @@ region_format=""
 screen_lock_enabled=""
 screen_lock_timeout_seconds=""
 
-# Reads a single KDE config value, falling back from kreadconfig6 to
-# kreadconfig5 the same way the ColorScheme lookup below does, without
-# repeating that fallback dance at every new call site.
 kde_read() {
     local file="$1" group="$2" key="$3"
     local val=""
@@ -64,13 +61,7 @@ kde_read() {
 if [[ "${XDG_CURRENT_DESKTOP:-}" == *KDE* || -n "${KDE_FULL_SESSION:-}" ]]; then
     source_desktop="kde"
 
-    scheme=""
-    if command -v kreadconfig6 >/dev/null 2>&1; then
-        scheme="$(kreadconfig6 --file kdeglobals --group General --key ColorScheme 2>/dev/null || true)"
-    fi
-    if [[ -z "${scheme}" ]] && command -v kreadconfig5 >/dev/null 2>&1; then
-        scheme="$(kreadconfig5 --file kdeglobals --group General --key ColorScheme 2>/dev/null || true)"
-    fi
+    scheme="$(kde_read kdeglobals General ColorScheme)"
     if [[ -n "${scheme}" ]]; then
         if [[ "${scheme,,}" == *dark* ]]; then
             dark_mode="true"
@@ -131,8 +122,10 @@ if [[ "${XDG_CURRENT_DESKTOP:-}" == *KDE* || -n "${KDE_FULL_SESSION:-}" ]]; then
     if [[ -n "${autolock}" ]]; then
         screen_lock_enabled="${autolock}"
         lock_timeout_minutes="$(kde_read kscreenlockerrc Daemon Timeout)"
-        if [[ -n "${lock_timeout_minutes}" ]]; then
+        if [[ "${lock_timeout_minutes}" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
             screen_lock_timeout_seconds=$(( ${lock_timeout_minutes%%.*} * 60 ))
+        elif [[ -n "${lock_timeout_minutes}" ]]; then
+            warn "Ignoring non-numeric kscreenlockerrc Timeout value: ${lock_timeout_minutes}"
         fi
     else
         warn "Could not determine KDE screen lock state (kscreenlockerrc)."
@@ -199,7 +192,11 @@ elif [[ "${XDG_CURRENT_DESKTOP:-}" == *GNOME* ]]; then
         if [[ -n "${screen_lock_enabled}" ]]; then
             idle_delay="$(gsettings get org.gnome.desktop.session idle-delay 2>/dev/null || true)"
             lock_delay="$(gsettings get org.gnome.desktop.screensaver lock-delay 2>/dev/null || true)"
-            screen_lock_timeout_seconds=$(( ${idle_delay:-0} + ${lock_delay:-0} ))
+            if [[ "${idle_delay}" =~ ^[0-9]+$ && "${lock_delay}" =~ ^[0-9]+$ ]]; then
+                screen_lock_timeout_seconds=$(( idle_delay + lock_delay ))
+            else
+                warn "Could not parse GNOME idle-delay/lock-delay as numbers; skipping screen lock timeout."
+            fi
         else
             warn "Could not determine GNOME screen lock state."
         fi
