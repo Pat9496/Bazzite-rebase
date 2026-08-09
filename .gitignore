@@ -8,6 +8,9 @@
 # OS cruft
 .DS_Store
 
+# Archives
+*.zip
+
 # AI coding agent instructions (local dev aid, not part of the published project)
 CLAUDE.md
 GEMINI.md
