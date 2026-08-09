@@ -160,3 +160,26 @@ compute_target_image_ref() {
         printf '%s\n' "${prefix}${repo_path}/${new_image_name}:${tag}"
     fi
 }
+
+# Determines whether the currently booted image is a KDE Plasma or GNOME
+# variant, using the same bazzite[-deck][-gnome][-nvidia[-open]] pattern
+# compute_target_image_ref validates against, so the two never disagree.
+current_desktop() {
+    local ref="" name=""
+    ref="$(get_current_image_ref)" || return 1
+
+    name="${ref##*/}"
+    name="${name%%@*}"
+    name="${name%%:*}"
+
+    if [[ ! "${name}" =~ ^bazzite(-deck)?(-gnome)?(-nvidia(-open)?)?$ ]]; then
+        err "Image name '${name}' does not look like a recognized bazzite* image."
+        return 1
+    fi
+
+    if [[ -n "${BASH_REMATCH[2]:-}" ]]; then
+        printf 'gnome\n'
+    else
+        printf 'kde\n'
+    fi
+}

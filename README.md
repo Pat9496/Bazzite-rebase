@@ -51,6 +51,18 @@ migrated.
 ## Usage
 
 ```bash
+./Bazzite-rebase.sh
+```
+
+This detects whether you're currently on KDE Plasma or GNOME and runs the
+matching script for you (`bin/rebase-to-gnome.sh` or `bin/rebase-to-kde.sh`).
+Any arguments are forwarded, e.g. `./Bazzite-rebase.sh --dry-run` or
+`./Bazzite-rebase.sh -y`.
+
+You can also call either script directly if you'd rather be explicit about
+direction:
+
+```bash
 # From KDE Plasma, switch to GNOME
 bin/rebase-to-gnome.sh
 

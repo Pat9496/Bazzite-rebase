@@ -16,10 +16,10 @@ jobs:
       - name: Syntax-check scripts
         run: |
           set -euo pipefail
-          for f in bin/*.sh bin/lib/*.sh; do
+          for f in Bazzite-rebase.sh bin/*.sh bin/lib/*.sh; do
             echo "bash -n $f"
             bash -n "$f"
           done
 
       - name: Run ShellCheck
-        run: shellcheck bin/*.sh bin/lib/*.sh
+        run: shellcheck Bazzite-rebase.sh bin/*.sh bin/lib/*.sh

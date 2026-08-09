@@ -23,7 +23,7 @@ a real Bazzite system before opening a pull request.
   touch before opening a pull request:
 
   ```bash
-  shellcheck bin/*.sh bin/lib/*.sh
+  shellcheck Bazzite-rebase.sh bin/*.sh bin/lib/*.sh
   ```
 
   The same check runs in CI on every pull request (see
