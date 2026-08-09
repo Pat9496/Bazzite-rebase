@@ -1,0 +1,23 @@
+# Editor / IDE
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# OS cruft
+.DS_Store
+
+# AI coding agent instructions (local dev aid, not part of the published project)
+CLAUDE.md
+GEMINI.md
+AGENTS.md
+.github/copilot-instructions.md
+.cursorrules
+.clinerules
+.windsurfrules
+
+# Local backups produced by bin/lib/backup-config.sh
+# (these normally live under ~/.local/share/bazzite-rebase/backups, not the
+# repo, but ignore a local ./backups/ too in case someone points BACKUP_ROOT here)
+/backups/
