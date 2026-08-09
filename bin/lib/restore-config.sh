@@ -62,6 +62,12 @@ fi
 SOURCE_DESKTOP=""
 DARK_MODE=""
 WALLPAPER_PATH=""
+KEYBOARD_LAYOUTS=""
+NIGHT_LIGHT_ENABLED=""
+NIGHT_LIGHT_TEMPERATURE=""
+REGION_FORMAT=""
+SCREEN_LOCK_ENABLED=""
+SCREEN_LOCK_TIMEOUT_SECONDS=""
 # shellcheck source=/dev/null
 source "${settings_file}"
 log "Settings were captured on: ${SOURCE_DESKTOP:-unknown desktop}"
@@ -107,6 +113,101 @@ else
     skipped+=("wallpaper")
 fi
 
+if [[ -n "${KEYBOARD_LAYOUTS}" ]]; then
+    IFS=',' read -r -a _kb_entries <<< "${KEYBOARD_LAYOUTS}"
+    if [[ "${target_desktop}" == "gnome" ]]; then
+        require_cmd gsettings
+        _kb_tuples=()
+        for entry in "${_kb_entries[@]}"; do
+            layout="${entry%%:*}"
+            if [[ "${entry}" == *:* ]]; then
+                _kb_tuples+=("('xkb', '${layout}+${entry#*:}')")
+            else
+                _kb_tuples+=("('xkb', '${layout}')")
+            fi
+        done
+        gsettings set org.gnome.desktop.input-sources sources "[$(IFS=','; printf '%s' "${_kb_tuples[*]}")]"
+    else
+        require_cmd kwriteconfig6
+        _kb_layouts=()
+        _kb_variants=()
+        for entry in "${_kb_entries[@]}"; do
+            _kb_layouts+=("${entry%%:*}")
+            if [[ "${entry}" == *:* ]]; then
+                _kb_variants+=("${entry#*:}")
+            else
+                _kb_variants+=("")
+            fi
+        done
+        kwriteconfig6 --file kxkbrc --group Layout --key LayoutList "$(IFS=','; printf '%s' "${_kb_layouts[*]}")"
+        kwriteconfig6 --file kxkbrc --group Layout --key VariantList "$(IFS=','; printf '%s' "${_kb_variants[*]}")"
+        warn "Keyboard layout written to kxkbrc; a logout/login may be needed for it to take effect."
+    fi
+    applied+=("keyboard layout")
+else
+    warn "No KEYBOARD_LAYOUTS recorded in ${settings_file}; skipping."
+    skipped+=("keyboard layout")
+fi
+
+if [[ -n "${NIGHT_LIGHT_ENABLED}" ]]; then
+    if [[ "${target_desktop}" == "gnome" ]]; then
+        require_cmd gsettings
+        gsettings set org.gnome.settings-daemon.plugins.color night-light-enabled "${NIGHT_LIGHT_ENABLED}"
+        [[ -n "${NIGHT_LIGHT_TEMPERATURE}" ]] && gsettings set org.gnome.settings-daemon.plugins.color night-light-temperature "${NIGHT_LIGHT_TEMPERATURE}"
+    else
+        require_cmd kwriteconfig6
+        kwriteconfig6 --file kwinrc --group NightColor --key Active "${NIGHT_LIGHT_ENABLED}"
+        [[ -n "${NIGHT_LIGHT_TEMPERATURE}" ]] && kwriteconfig6 --file kwinrc --group NightColor --key NightTemperature "${NIGHT_LIGHT_TEMPERATURE}"
+        if command -v qdbus6 >/dev/null 2>&1; then
+            qdbus6 org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || warn "Could not reload KWin config; a logout/login may be needed for Night Light to take effect."
+        elif command -v qdbus >/dev/null 2>&1; then
+            qdbus org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || warn "Could not reload KWin config; a logout/login may be needed for Night Light to take effect."
+        else
+            warn "qdbus not found; a logout/login may be needed for Night Light to take effect."
+        fi
+    fi
+    applied+=("Night Light")
+else
+    warn "No NIGHT_LIGHT_ENABLED recorded in ${settings_file}; skipping."
+    skipped+=("Night Light")
+fi
+
+if [[ -n "${REGION_FORMAT}" ]]; then
+    if [[ "${target_desktop}" == "gnome" ]]; then
+        require_cmd gsettings
+        gsettings set org.gnome.system.locale region "${REGION_FORMAT}"
+    else
+        require_cmd kwriteconfig6
+        kwriteconfig6 --file plasma-localerc --group Formats --key LANG "${REGION_FORMAT}"
+    fi
+    warn "Region format applied; a logout/login is needed for it to fully take effect."
+    applied+=("region format")
+else
+    warn "No REGION_FORMAT recorded in ${settings_file}; skipping."
+    skipped+=("region format")
+fi
+
+if [[ -n "${SCREEN_LOCK_ENABLED}" ]]; then
+    if [[ "${target_desktop}" == "gnome" ]]; then
+        require_cmd gsettings
+        gsettings set org.gnome.desktop.screensaver lock-enabled "${SCREEN_LOCK_ENABLED}"
+        if [[ -n "${SCREEN_LOCK_TIMEOUT_SECONDS}" ]]; then
+            gsettings set org.gnome.desktop.session idle-delay "${SCREEN_LOCK_TIMEOUT_SECONDS}"
+            gsettings set org.gnome.desktop.screensaver lock-delay 0
+        fi
+    else
+        require_cmd kwriteconfig6
+        kwriteconfig6 --file kscreenlockerrc --group Daemon --key Autolock "${SCREEN_LOCK_ENABLED}"
+        if [[ -n "${SCREEN_LOCK_TIMEOUT_SECONDS}" ]]; then
+            kwriteconfig6 --file kscreenlockerrc --group Daemon --key Timeout $(( SCREEN_LOCK_TIMEOUT_SECONDS / 60 ))
+        fi
+    fi
+    applied+=("screen lock timeout")
+else
+    warn "No SCREEN_LOCK_ENABLED recorded in ${settings_file}; skipping."
+    skipped+=("screen lock timeout")
+fi
+
 manual_steps_file="${from_dir}/MANUAL-STEPS.txt"
 {
     printf 'Not migrated (set manually after switching):\n\n'
@@ -117,6 +218,9 @@ manual_steps_file="${from_dir}/MANUAL-STEPS.txt"
     printf -- '- KDE Activities and virtual desktop setup; GNOME workspaces configuration\n'
     printf -- '- GNOME Shell extensions; KDE Plasma widgets and window rules\n'
     printf -- "- Icon theme and GTK/Qt application style (the two desktops don't share a theme format)\n"
+    printf -- '- Suspend/sleep and display-off timeouts (KDE per-profile power settings have no clean 1:1 mapping to GNOME power settings)\n'
+    printf -- '- Non-xkb input methods (e.g. ibus engines); only xkb keyboard layouts are migrated\n'
+    printf -- '- Saved passwords/secrets (GNOME Keyring vs KWallet use incompatible on-disk formats); WiFi/browser/email passwords stored in one are not readable by the other after switching\n'
 } > "${manual_steps_file}"
 
 applied_str="none"

@@ -10,9 +10,13 @@ implements exactly these translations in code — nothing more.
 |-----------------|-------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|
 | Dark/light mode | `kreadconfig6`/`kreadconfig5` (`kdeglobals`, group `General`, key `ColorScheme`); applied with `plasma-apply-colorscheme` | `gsettings get/set org.gnome.desktop.interface color-scheme` (`prefer-dark`/`default`) |
 | Wallpaper image | Plasma per-monitor wallpaper config (read via the current `plasma-org.kde.plasma.desktop-appletsrc`); applied with `plasma-apply-wallpaperimage` | `gsettings get/set org.gnome.desktop.background picture-uri` (and `picture-uri-dark`) |
+| Keyboard layout(s) | `kxkbrc`, group `Layout`, keys `LayoutList`/`VariantList` (xkb layout/variant only — non-xkb input methods like ibus engines aren't migrated) | `gsettings get/set org.gnome.desktop.input-sources sources` |
+| Night Light / blue-light filter | `kwinrc`, group `NightColor`, keys `Active`/`NightTemperature`; reloaded via `qdbus6`/`qdbus org.kde.KWin /KWin reconfigure` | `gsettings get/set org.gnome.settings-daemon.plugins.color night-light-enabled`/`night-light-temperature` |
+| Region format (dates/numbers/currency) | `plasma-localerc`, group `Formats`, key `LANG` | `gsettings get/set org.gnome.system.locale region` |
+| Screen lock (on/off + timeout) | `kscreenlockerrc`, group `Daemon`, keys `Autolock`/`Timeout` (minutes) | `gsettings get/set org.gnome.desktop.screensaver lock-enabled` and `org.gnome.desktop.session idle-delay` + `org.gnome.desktop.screensaver lock-delay` (seconds, summed) |
 
-Both are best-effort: if the value can't be read on the source desktop, the
-script logs a warning and skips it rather than failing the whole run.
+All of these are best-effort: if a value can't be read on the source desktop,
+the script logs a warning and skips it rather than failing the whole run.
 
 ## Not migrated (set manually after switching)
 
@@ -30,6 +34,15 @@ components that don't exist on the other side:
 - GNOME Shell extensions; KDE Plasma widgets and window rules
 - Icon theme and GTK/Qt application style (the two desktops don't share a
   theme format)
+- Suspend/sleep and display-off timeouts (KDE's per-profile AC/Battery/
+  LowBattery power settings have no clean 1:1 mapping to GNOME's power
+  settings)
+- Non-xkb input methods (e.g. ibus engines); only xkb keyboard layouts are
+  migrated
+- Saved passwords/secrets (GNOME Keyring `~/.local/share/keyrings/` vs KWallet
+  `~/.local/share/kwalletd/`): both implement the Secret Service D-Bus API,
+  but their on-disk formats are mutually incompatible, so WiFi/browser/email
+  passwords stored in one aren't readable by the other after switching
 
 `restore-config.sh` writes these out as a checklist to `MANUAL-STEPS.txt`
 alongside each backup so nothing is silently lost.

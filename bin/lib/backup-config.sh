@@ -39,6 +39,27 @@ fi
 source_desktop=""
 dark_mode=""
 wallpaper_path=""
+keyboard_layouts=""
+night_light_enabled=""
+night_light_temperature=""
+region_format=""
+screen_lock_enabled=""
+screen_lock_timeout_seconds=""
+
+# Reads a single KDE config value, falling back from kreadconfig6 to
+# kreadconfig5 the same way the ColorScheme lookup below does, without
+# repeating that fallback dance at every new call site.
+kde_read() {
+    local file="$1" group="$2" key="$3"
+    local val=""
+    if command -v kreadconfig6 >/dev/null 2>&1; then
+        val="$(kreadconfig6 --file "${file}" --group "${group}" --key "${key}" 2>/dev/null || true)"
+    fi
+    if [[ -z "${val}" ]] && command -v kreadconfig5 >/dev/null 2>&1; then
+        val="$(kreadconfig5 --file "${file}" --group "${group}" --key "${key}" 2>/dev/null || true)"
+    fi
+    printf '%s' "${val}"
+}
 
 if [[ "${XDG_CURRENT_DESKTOP:-}" == *KDE* || -n "${KDE_FULL_SESSION:-}" ]]; then
     source_desktop="kde"
@@ -72,6 +93,50 @@ if [[ "${XDG_CURRENT_DESKTOP:-}" == *KDE* || -n "${KDE_FULL_SESSION:-}" ]]; then
     else
         warn "Plasma appletsrc config not found at ${appletsrc}."
     fi
+
+    layout_list="$(kde_read kxkbrc Layout LayoutList)"
+    if [[ -n "${layout_list}" ]]; then
+        variant_list="$(kde_read kxkbrc Layout VariantList)"
+        IFS=',' read -r -a _kb_layouts <<< "${layout_list}"
+        IFS=',' read -r -a _kb_variants <<< "${variant_list}"
+        _kb_entries=()
+        for i in "${!_kb_layouts[@]}"; do
+            layout="${_kb_layouts[$i]}"
+            variant="${_kb_variants[$i]:-}"
+            if [[ -n "${variant}" ]]; then
+                _kb_entries+=("${layout}:${variant}")
+            else
+                _kb_entries+=("${layout}")
+            fi
+        done
+        keyboard_layouts="$(IFS=','; printf '%s' "${_kb_entries[*]}")"
+    else
+        warn "Could not determine KDE keyboard layout (kxkbrc LayoutList)."
+    fi
+
+    night_color_active="$(kde_read kwinrc NightColor Active)"
+    if [[ -n "${night_color_active}" ]]; then
+        night_light_enabled="${night_color_active}"
+        night_light_temperature="$(kde_read kwinrc NightColor NightTemperature)"
+    else
+        warn "Could not determine KDE Night Color state (kwinrc NightColor)."
+    fi
+
+    region_format="$(kde_read plasma-localerc Formats LANG)"
+    if [[ -z "${region_format}" ]]; then
+        warn "Could not determine KDE region format (plasma-localerc)."
+    fi
+
+    autolock="$(kde_read kscreenlockerrc Daemon Autolock)"
+    if [[ -n "${autolock}" ]]; then
+        screen_lock_enabled="${autolock}"
+        lock_timeout_minutes="$(kde_read kscreenlockerrc Daemon Timeout)"
+        if [[ -n "${lock_timeout_minutes}" ]]; then
+            screen_lock_timeout_seconds=$(( ${lock_timeout_minutes%%.*} * 60 ))
+        fi
+    else
+        warn "Could not determine KDE screen lock state (kscreenlockerrc)."
+    fi
 elif [[ "${XDG_CURRENT_DESKTOP:-}" == *GNOME* ]]; then
     source_desktop="gnome"
 
@@ -95,6 +160,49 @@ elif [[ "${XDG_CURRENT_DESKTOP:-}" == *GNOME* ]]; then
         else
             warn "Could not determine GNOME wallpaper picture-uri."
         fi
+
+        sources_raw="$(gsettings get org.gnome.desktop.input-sources sources 2>/dev/null || true)"
+        if [[ -n "${sources_raw}" ]]; then
+            _kb_entries=()
+            while IFS= read -r xkb_id; do
+                [[ -z "${xkb_id}" ]] && continue
+                _kb_entries+=("${xkb_id/+/:}")
+            done < <(grep -oP "\('xkb', '\K[^']+" <<< "${sources_raw}" 2>/dev/null || true)
+            if grep -q "'ibus'" <<< "${sources_raw}"; then
+                warn "Skipping non-xkb (ibus) input sources; no KDE equivalent."
+            fi
+            if ((${#_kb_entries[@]})); then
+                keyboard_layouts="$(IFS=','; printf '%s' "${_kb_entries[*]}")"
+            else
+                warn "No xkb keyboard layouts found in GNOME input sources."
+            fi
+        else
+            warn "Could not determine GNOME keyboard layout (input-sources)."
+        fi
+
+        night_light_enabled="$(gsettings get org.gnome.settings-daemon.plugins.color night-light-enabled 2>/dev/null || true)"
+        if [[ -n "${night_light_enabled}" ]]; then
+            night_light_temperature="$(gsettings get org.gnome.settings-daemon.plugins.color night-light-temperature 2>/dev/null || true)"
+        else
+            warn "Could not determine GNOME Night Light state."
+        fi
+
+        region_format="$(gsettings get org.gnome.system.locale region 2>/dev/null || true)"
+        if [[ -n "${region_format}" ]]; then
+            region_format="${region_format#\'}"
+            region_format="${region_format%\'}"
+        else
+            warn "Could not determine GNOME region format."
+        fi
+
+        screen_lock_enabled="$(gsettings get org.gnome.desktop.screensaver lock-enabled 2>/dev/null || true)"
+        if [[ -n "${screen_lock_enabled}" ]]; then
+            idle_delay="$(gsettings get org.gnome.desktop.session idle-delay 2>/dev/null || true)"
+            lock_delay="$(gsettings get org.gnome.desktop.screensaver lock-delay 2>/dev/null || true)"
+            screen_lock_timeout_seconds=$(( ${idle_delay:-0} + ${lock_delay:-0} ))
+        else
+            warn "Could not determine GNOME screen lock state."
+        fi
     else
         warn "gsettings not found; skipping GNOME settings read."
     fi
@@ -107,6 +215,12 @@ settings_file="${backup_dir}/settings.env"
 [[ -n "${source_desktop}" ]] && printf 'SOURCE_DESKTOP=%s\n' "${source_desktop}" >> "${settings_file}"
 [[ -n "${dark_mode}" ]] && printf 'DARK_MODE=%s\n' "${dark_mode}" >> "${settings_file}"
 [[ -n "${wallpaper_path}" ]] && printf 'WALLPAPER_PATH=%q\n' "${wallpaper_path}" >> "${settings_file}"
+[[ -n "${keyboard_layouts}" ]] && printf 'KEYBOARD_LAYOUTS=%q\n' "${keyboard_layouts}" >> "${settings_file}"
+[[ -n "${night_light_enabled}" ]] && printf 'NIGHT_LIGHT_ENABLED=%s\n' "${night_light_enabled}" >> "${settings_file}"
+[[ -n "${night_light_temperature}" ]] && printf 'NIGHT_LIGHT_TEMPERATURE=%s\n' "${night_light_temperature}" >> "${settings_file}"
+[[ -n "${region_format}" ]] && printf 'REGION_FORMAT=%q\n' "${region_format}" >> "${settings_file}"
+[[ -n "${screen_lock_enabled}" ]] && printf 'SCREEN_LOCK_ENABLED=%s\n' "${screen_lock_enabled}" >> "${settings_file}"
+[[ -n "${screen_lock_timeout_seconds}" ]] && printf 'SCREEN_LOCK_TIMEOUT_SECONDS=%s\n' "${screen_lock_timeout_seconds}" >> "${settings_file}"
 
 log "Backup written to ${backup_dir}"
 printf '%s\n' "${backup_dir}"
