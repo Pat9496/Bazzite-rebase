@@ -216,6 +216,35 @@ else
     skipped+=("screen lock timeout")
 fi
 
+layered_packages_file="${from_dir}/rpm-ostree-layered-packages.txt"
+if [[ -s "${layered_packages_file}" ]]; then
+    require_cmd rpm-ostree
+    mapfile -t layered_packages < "${layered_packages_file}"
+    missing_packages=()
+    for pkg in "${layered_packages[@]}"; do
+        [[ -z "${pkg}" ]] && continue
+        if ! rpm -q "${pkg}" >/dev/null 2>&1; then
+            missing_packages+=("${pkg}")
+        fi
+    done
+    if ((${#missing_packages[@]})); then
+        log "Layering packages: ${missing_packages[*]}"
+        if ! sudo rpm-ostree install "${missing_packages[@]}"; then
+            warn "Failed to re-layer packages (${missing_packages[*]})."
+            skipped+=("layered packages")
+        else
+            applied+=("layered packages (${missing_packages[*]})")
+            warn "A reboot is required for the newly layered packages to take effect."
+        fi
+    else
+        log "All well-known layered packages are already present."
+        applied+=("layered packages (already present)")
+    fi
+else
+    warn "No rpm-ostree-layered-packages.txt found in ${from_dir}; skipping."
+    skipped+=("layered packages")
+fi
+
 manual_steps_file="${from_dir}/MANUAL-STEPS.txt"
 {
     printf 'Not migrated (set manually after switching):\n\n'
@@ -229,6 +258,7 @@ manual_steps_file="${from_dir}/MANUAL-STEPS.txt"
     printf -- '- Suspend/sleep and display-off timeouts (KDE per-profile power settings have no clean 1:1 mapping to GNOME power settings)\n'
     printf -- '- Non-xkb input methods (e.g. ibus engines); only xkb keyboard layouts are migrated\n'
     printf -- '- Saved passwords/secrets (GNOME Keyring vs KWallet use incompatible on-disk formats); WiFi/browser/email passwords stored in one are not readable by the other after switching\n'
+    printf -- '- rpm-ostree-layered packages outside the well-known set (see config-map/README.md); check rpm-ostree status and re-layer manually with rpm-ostree install <package> if something is missing\n'
 } > "${manual_steps_file}"
 
 applied_str="none"

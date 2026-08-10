@@ -36,6 +36,32 @@ else
     warn "rpm-ostree not found; skipping status capture."
 fi
 
+if command -v rpm-ostree >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+    requested_packages_raw="$(rpm-ostree status --json 2>/dev/null \
+        | jq -r '.deployments[] | select(.booted==true) | (."requested-packages" // [])[]' 2>/dev/null || true)"
+    if [[ -z "${requested_packages_raw}" ]]; then
+        warn "Could not determine requested rpm-ostree packages; skipping layered-package capture."
+    else
+        mapfile -t requested_packages <<< "${requested_packages_raw}"
+        layered_matches=()
+        for pkg in "${WELL_KNOWN_LAYERED_PACKAGES[@]}"; do
+            for requested in "${requested_packages[@]}"; do
+                if [[ "${pkg}" == "${requested}" ]]; then
+                    layered_matches+=("${pkg}")
+                    break
+                fi
+            done
+        done
+        if ((${#layered_matches[@]})); then
+            printf '%s\n' "${layered_matches[@]}" > "${backup_dir}/rpm-ostree-layered-packages.txt"
+        else
+            log "None of the well-known layered packages are currently layered."
+        fi
+    fi
+else
+    warn "rpm-ostree or jq not found; skipping layered-package capture."
+fi
+
 source_desktop=""
 dark_mode=""
 wallpaper_path=""

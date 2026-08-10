@@ -36,7 +36,10 @@ On an ostree-based system like Bazzite, only `/usr` is replaced wholesale and
 
 These scripts back up a snapshot of your current settings for reference, and
 actively re-apply a small, well-defined set of equivalent preferences
-(dark/light mode, wallpaper) in the new desktop's native config system. See
+(dark/light mode, wallpaper) in the new desktop's native config system. They
+also track a curated set of well-known `rpm-ostree`-layered CLI packages
+(Alacritty, chezmoi, htop, btop, Neovim, tmux, fastfetch, git and friends)
+and re-layer any of them that didn't carry over to the new image. See
 [`config-map/README.md`](config-map/README.md) for exactly what is and isn't
 migrated.
 
@@ -89,10 +92,12 @@ bin/lib/restore-config.sh --to gnome   # or --to kde
 ```
 
 This re-applies the settings captured in step 2 that have a known
-equivalent in the new desktop, and writes a `MANUAL-STEPS.txt` next to the
-backup listing what it could *not* migrate (panel/dock layout, keyboard
-shortcuts, per-application settings, default app associations, GNOME
-extensions, KDE Activities, and similar desktop-specific setup).
+equivalent in the new desktop, re-layers (via `sudo rpm-ostree install`) any
+well-known CLI packages that didn't carry over automatically, and writes a
+`MANUAL-STEPS.txt` next to the backup listing what it could *not* migrate
+(panel/dock layout, keyboard shortcuts, per-application settings, default app
+associations, GNOME extensions, KDE Activities, and similar desktop-specific
+setup). If packages were re-layered, reboot once more to pick them up.
 
 ## Rolling back
 

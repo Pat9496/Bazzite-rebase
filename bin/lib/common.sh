@@ -45,6 +45,9 @@ confirm() {
 
 BACKUP_ROOT="${HOME}/.local/share/bazzite-rebase/backups"
 
+# shellcheck disable=SC2034 # used by bin/lib/backup-config.sh and bin/lib/restore-config.sh
+WELL_KNOWN_LAYERED_PACKAGES=(alacritty chezmoi htop btop neovim tmux fastfetch git git-lfs git-delta gh lazygit tig)
+
 new_backup_dir() {
     local dir
     dir="${BACKUP_ROOT}/$(date +%Y%m%d-%H%M%S)"
