@@ -48,6 +48,7 @@ target_ref="$(compute_target_image_ref "${current_ref}" "${DIRECTION}")"
 log "Current image: ${current_ref}"
 log "Target image:  ${target_ref}"
 warn "Rebasing between desktop environments is unsupported by the Bazzite project; see README.md."
+verify_target_matches_hardware "${target_ref}"
 
 if [[ "${DRY_RUN}" -eq 1 ]]; then
     log "Dry run: would back up current settings, then run: sudo rpm-ostree rebase ${target_ref}"

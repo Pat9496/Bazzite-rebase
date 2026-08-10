@@ -202,6 +202,7 @@ elif [[ "${XDG_CURRENT_DESKTOP:-}" == *GNOME* ]]; then
         night_light_enabled="$(gsettings get org.gnome.settings-daemon.plugins.color night-light-enabled 2>/dev/null || true)"
         if [[ -n "${night_light_enabled}" ]]; then
             night_light_temperature="$(gsettings get org.gnome.settings-daemon.plugins.color night-light-temperature 2>/dev/null || true)"
+            night_light_temperature="${night_light_temperature#uint32 }"
         else
             warn "Could not determine GNOME Night Light state."
         fi
@@ -217,7 +218,9 @@ elif [[ "${XDG_CURRENT_DESKTOP:-}" == *GNOME* ]]; then
         screen_lock_enabled="$(gsettings get org.gnome.desktop.screensaver lock-enabled 2>/dev/null || true)"
         if [[ -n "${screen_lock_enabled}" ]]; then
             idle_delay="$(gsettings get org.gnome.desktop.session idle-delay 2>/dev/null || true)"
+            idle_delay="${idle_delay#uint32 }"
             lock_delay="$(gsettings get org.gnome.desktop.screensaver lock-delay 2>/dev/null || true)"
+            lock_delay="${lock_delay#uint32 }"
             if [[ "${idle_delay}" =~ ^[0-9]+$ && "${lock_delay}" =~ ^[0-9]+$ ]]; then
                 screen_lock_timeout_seconds=$(( idle_delay + lock_delay ))
             else
@@ -239,10 +242,10 @@ settings_file="${backup_dir}/settings.env"
 [[ -n "${dark_mode}" ]] && printf 'DARK_MODE=%s\n' "${dark_mode}" >> "${settings_file}"
 [[ -n "${wallpaper_path}" ]] && printf 'WALLPAPER_PATH=%q\n' "${wallpaper_path}" >> "${settings_file}"
 [[ -n "${keyboard_layouts}" ]] && printf 'KEYBOARD_LAYOUTS=%q\n' "${keyboard_layouts}" >> "${settings_file}"
-[[ -n "${night_light_enabled}" ]] && printf 'NIGHT_LIGHT_ENABLED=%s\n' "${night_light_enabled}" >> "${settings_file}"
-[[ -n "${night_light_temperature}" ]] && printf 'NIGHT_LIGHT_TEMPERATURE=%s\n' "${night_light_temperature}" >> "${settings_file}"
+[[ -n "${night_light_enabled}" ]] && printf 'NIGHT_LIGHT_ENABLED=%q\n' "${night_light_enabled}" >> "${settings_file}"
+[[ -n "${night_light_temperature}" ]] && printf 'NIGHT_LIGHT_TEMPERATURE=%q\n' "${night_light_temperature}" >> "${settings_file}"
 [[ -n "${region_format}" ]] && printf 'REGION_FORMAT=%q\n' "${region_format}" >> "${settings_file}"
-[[ -n "${screen_lock_enabled}" ]] && printf 'SCREEN_LOCK_ENABLED=%s\n' "${screen_lock_enabled}" >> "${settings_file}"
+[[ -n "${screen_lock_enabled}" ]] && printf 'SCREEN_LOCK_ENABLED=%q\n' "${screen_lock_enabled}" >> "${settings_file}"
 [[ -n "${screen_lock_timeout_seconds}" ]] && printf 'SCREEN_LOCK_TIMEOUT_SECONDS=%s\n' "${screen_lock_timeout_seconds}" >> "${settings_file}"
 
 log "Backup written to ${backup_dir}"

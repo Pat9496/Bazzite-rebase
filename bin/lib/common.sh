@@ -46,7 +46,11 @@ confirm() {
 BACKUP_ROOT="${HOME}/.local/share/bazzite-rebase/backups"
 
 # shellcheck disable=SC2034 # used by bin/lib/backup-config.sh and bin/lib/restore-config.sh
-WELL_KNOWN_LAYERED_PACKAGES=(alacritty chezmoi htop btop neovim tmux fastfetch git git-lfs git-delta gh lazygit tig)
+WELL_KNOWN_LAYERED_PACKAGES=(
+    alacritty chezmoi htop btop neovim tmux fastfetch git git-lfs git-delta gh lazygit tig
+    cmatrix distrobox edk2-ovmf git-credential-libsecret libvirt podman-compose qemu-kvm
+    rpmdevtools swtpm topgrade vim-enhanced virt-install xclip xdotool xsel
+)
 
 new_backup_dir() {
     local dir
@@ -59,7 +63,7 @@ latest_backup_dir() {
     local dir=""
     if [[ -d "${BACKUP_ROOT}" ]]; then
         dir="$(find "${BACKUP_ROOT}" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' 2>/dev/null \
-            | sort -rn | head -n1 | cut -d' ' -f2-)"
+            | sort -rn | awk 'NR==1 { sub(/^[^ ]+ /, ""); print }')"
     fi
     if [[ -z "${dir}" ]]; then
         err "No backups found under ${BACKUP_ROOT}."
@@ -158,7 +162,13 @@ compute_target_image_ref() {
 
     local new_image_name="bazzite${deck}${gnome_seg}${nvidia_seg}"
     if [[ -n "${digest}" ]]; then
-        printf '%s\n' "${prefix}${repo_path}/${new_image_name}@${digest}"
+        # A digest is a content hash of the *specific* image named in
+        # current_ref; it doesn't identify any manifest under a different
+        # image name, so it can't be carried over as-is. Fall back to the
+        # ":latest" tag of the target image instead, so the rebase still
+        # resolves to a real, current image rather than a nonexistent ref.
+        warn "Current image is pinned to a digest (@${digest}), which is specific to '${image_name}' and does not carry over to '${new_image_name}'; rebasing to '${new_image_name}:latest' instead."
+        printf '%s\n' "${prefix}${repo_path}/${new_image_name}:latest"
     else
         printf '%s\n' "${prefix}${repo_path}/${new_image_name}:${tag}"
     fi
@@ -184,5 +194,54 @@ current_desktop() {
         printf 'gnome\n'
     else
         printf 'kde\n'
+    fi
+}
+
+detect_has_nvidia_gpu() {
+    command -v lspci >/dev/null 2>&1 || return 1
+    lspci -mm 2>/dev/null | awk -F'"' '{print $4}' | grep -qi 'NVIDIA'
+}
+
+detect_is_steam_deck() {
+    local product=""
+    product="$(cat /sys/class/dmi/id/product_name 2>/dev/null || true)"
+    [[ "${product}" == "Jupiter" || "${product}" == "Galileo" ]]
+}
+
+# Best-effort sanity check that a computed target ref's hardware-specific
+# segments (-deck, -nvidia[-open]) match what's actually detected on this
+# machine. Warns only -- never blocks the rebase -- since detection here
+# (lspci output, DMI product name) is a heuristic, not authoritative, and
+# these segments aren't something compute_target_image_ref ever changes
+# (only the -gnome segment is toggled).
+verify_target_matches_hardware() {
+    local target_ref="$1"
+    local name="${target_ref##*/}"
+    name="${name%%@*}"
+    name="${name%%:*}"
+
+    if [[ ! "${name}" =~ ^bazzite(-deck)?(-gnome)?(-nvidia(-open)?)?$ ]]; then
+        return 0
+    fi
+    local deck_seg="${BASH_REMATCH[1]:-}" nvidia_seg="${BASH_REMATCH[3]:-}"
+
+    if command -v lspci >/dev/null 2>&1; then
+        if detect_has_nvidia_gpu && [[ -z "${nvidia_seg}" ]]; then
+            warn "An NVIDIA GPU was detected, but '${name}' is not an -nvidia image variant."
+        elif ! detect_has_nvidia_gpu && [[ -n "${nvidia_seg}" ]]; then
+            warn "No NVIDIA GPU was detected, but '${name}' is an -nvidia image variant."
+        fi
+    else
+        warn "lspci not found; skipping NVIDIA hardware/image match check."
+    fi
+
+    if [[ -r /sys/class/dmi/id/product_name ]]; then
+        if detect_is_steam_deck && [[ -z "${deck_seg}" ]]; then
+            warn "This looks like a Steam Deck, but '${name}' is not a -deck image variant."
+        elif ! detect_is_steam_deck && [[ -n "${deck_seg}" ]]; then
+            warn "This doesn't look like a Steam Deck, but '${name}' is a -deck image variant."
+        fi
+    else
+        warn "Could not read DMI product name; skipping Steam Deck/image match check."
     fi
 }

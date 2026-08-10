@@ -18,14 +18,24 @@ implements exactly these translations in code — nothing more.
 All of these are best-effort: if a value can't be read on the source desktop,
 the script logs a warning and skips it rather than failing the whole run.
 
-## Layered CLI packages
+## Layered packages
 
 Separately from the desktop-setting table above, `backup-config.sh` also
-checks whether any of a curated, well-known set of `rpm-ostree`-layered CLI
-packages are currently requested (`alacritty`, `chezmoi`, `htop`, `btop`,
-`neovim`, `tmux`, `fastfetch`, `git`, `git-lfs`, `git-delta`, `gh`, `lazygit`,
-`tig` — see `WELL_KNOWN_LAYERED_PACKAGES` in `bin/lib/common.sh`), and records
-any matches to `rpm-ostree-layered-packages.txt` in the backup directory.
+checks whether any of a curated, well-known set of `rpm-ostree`-layered
+packages are currently requested — everyday CLI tools (`alacritty`,
+`chezmoi`, `htop`, `btop`, `neovim`, `tmux`, `fastfetch`, `git`, `git-lfs`,
+`git-delta`, `gh`, `lazygit`, `tig`, `git-credential-libsecret`, `vim-enhanced`,
+`cmatrix`, `topgrade`, `rpmdevtools`, `xclip`, `xdotool`, `xsel`) and the
+virtualization stack (`libvirt`, `qemu-kvm`, `virt-install`, `edk2-ovmf`,
+`swtpm`, `podman-compose`, `distrobox` — see `WELL_KNOWN_LAYERED_PACKAGES`
+in `bin/lib/common.sh`), and records any matches to
+`rpm-ostree-layered-packages.txt` in the backup directory. NVIDIA driver
+packages (`akmod-nvidia`, `xorg-x11-drv-nvidia`, and friends) are
+deliberately **not** tracked here — Bazzite ships a dedicated `-nvidia`
+image variant for that (see the image-name pattern in
+`compute_target_image_ref`/`current_desktop` in `bin/lib/common.sh`), so
+switching NVIDIA support is a rebase to the right image, not a layered
+package to restore.
 `restore-config.sh` reads that file back after the rebase and reboot, checks
 which of those packages are missing on the new deployment, and re-layers any
 that didn't carry over with `sudo rpm-ostree install` (which requires another

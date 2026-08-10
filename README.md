@@ -37,9 +37,10 @@ On an ostree-based system like Bazzite, only `/usr` is replaced wholesale and
 These scripts back up a snapshot of your current settings for reference, and
 actively re-apply a small, well-defined set of equivalent preferences
 (dark/light mode, wallpaper) in the new desktop's native config system. They
-also track a curated set of well-known `rpm-ostree`-layered CLI packages
-(Alacritty, chezmoi, htop, btop, Neovim, tmux, fastfetch, git and friends)
-and re-layer any of them that didn't carry over to the new image. See
+also track a curated set of well-known `rpm-ostree`-layered packages
+(Alacritty, chezmoi, htop, btop, Neovim, tmux, fastfetch, git and friends,
+and the libvirt/QEMU virtualization stack) and re-layer any of them that
+didn't carry over to the new image. See
 [`config-map/README.md`](config-map/README.md) for exactly what is and isn't
 migrated.
 
@@ -76,14 +77,23 @@ bin/rebase-to-kde.sh
 Both scripts:
 
 1. Detect your current image (device type, GPU driver, and channel/tag are
-   all preserved — only the desktop-environment component is swapped).
-2. Run `bin/lib/backup-config.sh` to snapshot current settings under
+   all preserved — only the desktop-environment component is swapped). If
+   the current tag turns out to be a digest pin, the digest doesn't carry
+   over to the other desktop's image (it's a hash of the *current* image's
+   content), so the script falls back to that image's `:latest` tag instead
+   and warns you it did so.
+2. Warn (best-effort, via `lspci`/DMI) if the computed target image doesn't
+   look like it matches this machine's actual hardware — e.g. an NVIDIA GPU
+   was detected but the target isn't an `-nvidia` variant, or vice versa,
+   or this looks like a Steam Deck but the target isn't a `-deck` variant.
+   This never blocks the rebase, since detection here is a heuristic.
+3. Run `bin/lib/backup-config.sh` to snapshot current settings under
    `~/.local/share/bazzite-rebase/backups/<timestamp>/`.
-3. Print the exact target image and ask for confirmation before doing
+4. Print the exact target image and ask for confirmation before doing
    anything (skip the prompt with `-y`/`--yes`; preview only with
    `--dry-run`).
-4. Run `rpm-ostree rebase` (via `sudo`) to stage the new deployment.
-5. Tell you to reboot, and to run `bin/lib/restore-config.sh` afterwards.
+5. Run `rpm-ostree rebase` (via `sudo`) to stage the new deployment.
+6. Tell you to reboot, and to run `bin/lib/restore-config.sh` afterwards.
 
 After rebooting into the new desktop:
 

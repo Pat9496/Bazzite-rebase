@@ -228,12 +228,13 @@ if [[ -s "${layered_packages_file}" ]]; then
         fi
     done
     if ((${#missing_packages[@]})); then
-        log "Layering packages: ${missing_packages[*]}"
+        missing_str="$(IFS=' '; printf '%s' "${missing_packages[*]}")"
+        log "Layering packages: ${missing_str}"
         if ! sudo rpm-ostree install "${missing_packages[@]}"; then
-            warn "Failed to re-layer packages (${missing_packages[*]})."
+            warn "Failed to re-layer packages (${missing_str})."
             skipped+=("layered packages")
         else
-            applied+=("layered packages (${missing_packages[*]})")
+            applied+=("layered packages (${missing_str})")
             warn "A reboot is required for the newly layered packages to take effect."
         fi
     else
