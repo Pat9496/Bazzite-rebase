@@ -1,8 +1,23 @@
 # Bazzite-rebase
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Shell: Bash](https://img.shields.io/badge/Shell-Bash-4EAA25?logo=gnubash&logoColor=white)](Bazzite-rebase.sh)
+[![ShellCheck](https://github.com/Pat9496/Bazzite-rebase/actions/workflows/shellcheck.yml/badge.svg)](https://github.com/Pat9496/Bazzite-rebase/actions/workflows/shellcheck.yml)
+
 Helper scripts to switch a [Bazzite](https://bazzite.gg) installation between its
 KDE Plasma and GNOME desktop-environment images, while keeping as much of the
 existing user configuration intact as is realistically possible.
+
+## Table of Contents
+
+- [Why this exists](#why-this-exists)
+- [What actually happens on a rebase](#what-actually-happens-on-a-rebase)
+- [Requirements](#requirements)
+- [Usage](#usage)
+- [Rolling back](#rolling-back)
+- [Contributing](#contributing)
+- [Credits](#credits)
+- [License](#license)
 
 ## Why this exists
 
