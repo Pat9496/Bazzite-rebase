@@ -8,6 +8,8 @@ Helper scripts to switch a [Bazzite](https://bazzite.gg) installation between it
 KDE Plasma and GNOME desktop-environment images, while keeping as much of the
 existing user configuration intact as is realistically possible.
 
+[Deutsche Version](README.de.md)
+
 ## Table of Contents
 
 - [Why this exists](#why-this-exists)
